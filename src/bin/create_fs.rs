@@ -39,7 +39,7 @@ fn main() { // takes in name of file and diskname
     buf[0] = 1;
     disk.write(&buf).expect("Write failed.");
 
-
+    
     // step 4: zero out all other data blocks
     // Implementation:
     // using same buffer, with 0 at first index, write to rest of disk, the remaining 127 data blocks

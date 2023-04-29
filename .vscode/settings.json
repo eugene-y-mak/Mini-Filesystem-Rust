@@ -1,5 +1,8 @@
 {
     "files.associations": {
         "istream": "cpp"
-    }
+    },
+    "rust-analyzer.linkedProjects": [
+        "./Cargo.toml"
+    ]
 }

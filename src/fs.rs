@@ -1,15 +1,42 @@
 use std::io::SeekFrom;
-use std::fs::File;
-use std::io::Seek;
+use std::{
+    fs::File,
+    io::{self, Seek, Read},
+};
+use byteorder::{LittleEndian, ReadBytesExt};
+
 
 
 pub const BLOCK_SIZE: i32 = 1024; // 1KB
-pub struct IdxNode {
-    name: String, // str or string?
+
+
+pub struct IdxNode { // 'a is lifetime specifier
+    name: [u8; 8], // array of bytes. Alternatively: [&'a str; 8]?
     size: i32,
-    block_pointers: [i32; 8],
+    block_pointers: [i32; 8], // design change: initialize all to -1...
     used: i32,
 }
+
+impl IdxNode {
+    // reads from file field by field to avoid using unsafe transmute. 
+    fn from_reader(mut rdr: impl Read) -> io::Result<Self> {
+        let mut name = [0u8; 8]; // initialize as 0s...how does this work?
+        rdr.read_exact(&mut name)?;
+        let size = rdr.read_i32::<LittleEndian>()?;
+        let mut block_pointers: [i32;8] = [-1;8]; // b/c we have size, theoretically shouldn't ever run into -1
+        for i in 0..8 {
+            block_pointers[i] = rdr.read_i32::<LittleEndian>()?;
+        }
+        let used = rdr.read_i32::<LittleEndian>()?;
+        Ok(IdxNode {
+            name,
+            size,
+            block_pointers,
+            used,
+        })
+    }
+}
+
 
 // -------------------------NOTES----------------------------
 // https://github.com/umass-cs-377/377-project-filesystem/blob/master/docs/index.md
@@ -56,10 +83,56 @@ impl MyFileSystem { // impl is kinda like a class, implements functions for stru
     // Move the file pointer to the position on disk where this inode was stored
     // Write out the inode to the disk file
     
-    pub fn create_file(&mut self, name: &str, size: i32) {
-        println!("creating file!");
+    pub fn create_file(&mut self, name: &str, size: i32) -> i32 {
+        if size < 1 || size > 8 {
+            println!("Size specified is nonpositive or greater than max");
+            return -1;  // needs return to end early
+        } 
+        println!("Creating file!");
+
+        // Move to beginning of disk
         self.disk.seek(SeekFrom::Start(0)).expect("Failed to seek.");
-    } 
+       
+        // Read first 128 bytes to freelist array to initialize it
+        // buffer (freelist) MUST be initialized before a file reads to it. 
+        let mut freelist = [0; 128]; // u8's size is 1 byte like a char
+        // read_exact requires a mutable buf
+        self.disk.read_exact(&mut freelist).expect("Read failed.");
+        
+
+        // count number if freeblocks to ensure there's enough for the size
+        let mut freeblocks = 0;
+        for i in 0..128 {
+            freeblocks += if freelist[i] == 1 {0} else {1};
+        }
+        if freeblocks < size {
+            return -1;
+        }
+        println!("Enough freeblocks: {freeblocks}, for the specified size");
+
+        // find unused inode, also check if inode exists with name already
+        
+        // how to read inode from disk? 
+        // 1. unsafe + transmute
+        // 2. bincode, serde
+        // 3. byteorder
+        let mut nd: IdxNode;
+        // assert size of IdxNode is 48...
+        // then use sizeof var for later
+        let Size_of_IdxNode = 48;
+        let mut ndidx:i32 = -1;
+        for i in (0i32..16).rev() { // iterator is u64 bruh
+            self.disk.seek(SeekFrom::Start(128 + (i * Size_of_IdxNode))).expect("Failed to seek.");
+            nd = IdxNode::from_reader(&self.disk).expect("IdxNode read failed."); // lol just borrow?
+            if nd.used == 0 {
+                ndidx = i;
+            }
+        }
+        0
+
+    }
+        
+} 
 
     // delete_file
     // int delete_file(char name[8]);
@@ -77,6 +150,6 @@ impl MyFileSystem { // impl is kinda like a class, implements functions for stru
 
     // close_disk
     // int close_disk();
-}
+
 
 

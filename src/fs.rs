@@ -2,15 +2,17 @@ use std::io::SeekFrom;
 use std::{
     fs::File,
     io::{self, Seek, Read},
+    str,
 };
 use byteorder::{LittleEndian, ReadBytesExt};
-
+use std::convert::TryFrom;
 
 
 pub const BLOCK_SIZE: i32 = 1024; // 1KB
 
 
 pub struct IdxNode { // 'a is lifetime specifier
+    // problem: length of array is always length of string? can't be fixed length?
     name: [u8; 8], // array of bytes. Alternatively: [&'a str; 8]?
     size: i32,
     block_pointers: [i32; 8], // design change: initialize all to -1...
@@ -120,14 +122,22 @@ impl MyFileSystem { // impl is kinda like a class, implements functions for stru
         // assert size of IdxNode is 48...
         // then use sizeof var for later
         let Size_of_IdxNode = 48;
-        let mut ndidx:i32 = -1;
+        let mut IdxNode_index:i32 = -1;
         for i in (0i32..16).rev() { // iterator is u64 bruh
-            self.disk.seek(SeekFrom::Start(128 + (i * Size_of_IdxNode))).expect("Failed to seek.");
+            self.disk.seek(SeekFrom::Start(u64::try_from(128 + (i * Size_of_IdxNode)).expect("Conversion failed"))).expect("Failed to seek.");
             nd = IdxNode::from_reader(&self.disk).expect("IdxNode read failed."); // lol just borrow?
             if nd.used == 0 {
-                ndidx = i;
+                IdxNode_index = i;
+            } else if str::from_utf8(&nd.name).unwrap().eq(name) {
+                return -1
             }
         }
+        // copy name thing
+        nd.size = size;
+        nd.used = 1;
+
+        
+
         0
 
     }

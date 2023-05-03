@@ -85,7 +85,7 @@ impl MyFileSystem { // impl is kinda like a class, implements functions for stru
     // Move the file pointer to the position on disk where this inode was stored
     // Write out the inode to the disk file
     
-    pub fn create_file(&mut self, name: &str, size: i32) -> i32 {
+    pub fn create_file(&mut self, name: [u8; 8], size: i32) -> i32 {
         if size < 1 || size > 8 {
             println!("Size specified is nonpositive or greater than max");
             return -1;  // needs return to end early
@@ -118,21 +118,29 @@ impl MyFileSystem { // impl is kinda like a class, implements functions for stru
         // 1. unsafe + transmute
         // 2. bincode, serde
         // 3. byteorder
-        let mut nd: IdxNode;
-        // assert size of IdxNode is 48...
+        let mut nd =  IdxNode {
+            name: [0u8; 8],
+            size: -1, 
+            block_pointers: [0; 8],
+            used: -1
+        };  
+        // TODO: assert size of IdxNode is 48...
         // then use sizeof var for later
-        let Size_of_IdxNode = 48;
-        let mut IdxNode_index:i32 = -1;
+        let size_of_node = 48;
+        let mut node_index:i32 = -1;
         for i in (0i32..16).rev() { // iterator is u64 bruh
-            self.disk.seek(SeekFrom::Start(u64::try_from(128 + (i * Size_of_IdxNode)).expect("Conversion failed"))).expect("Failed to seek.");
+            self.disk.seek(SeekFrom::Start(u64::try_from(128 + (i * size_of_node)).expect("Conversion failed"))).expect("Failed to seek.");
             nd = IdxNode::from_reader(&self.disk).expect("IdxNode read failed."); // lol just borrow?
             if nd.used == 0 {
-                IdxNode_index = i;
-            } else if str::from_utf8(&nd.name).unwrap().eq(name) {
+                node_index = i;
+            } else if str::from_utf8(&nd.name).unwrap().eq(str::from_utf8(&name).unwrap()) { // question: from utf8 handles names < 8 size?
                 return -1
             }
         }
-        // copy name thing
+        if node_index == -1 { // if for loop never ran didn't read in an inode
+            return -1;
+        }
+        nd.name = name; // pass by value?
         nd.size = size;
         nd.used = 1;
 

@@ -149,6 +149,7 @@ impl MyFileSystem { // impl is kinda like a class, implements functions for stru
     }
     
     pub fn ls(&mut self) {
+        println!("Files on disk:");
         let size_of_node = mem::size_of::<IdxNode>();
         assert!(size_of_node == 48);
         let mut nd =  IdxNode {
@@ -162,14 +163,15 @@ impl MyFileSystem { // impl is kinda like a class, implements functions for stru
             self.disk.seek(SeekFrom::Start(u64::try_from(128 + ((i as usize) * size_of_node)).expect("Conversion failed."))).expect("Failed to seek.");
             nd = IdxNode::from_reader(&self.disk).expect("IdxNode read failed."); 
             if nd.used == 1 {
-                print!("{}, {} bytes. blocks: ", str::from_utf8(&nd.name).unwrap(), nd.size)
-            }
-            for j in 0..nd.size {
-                print!("{} ", nd.block_pointers[j as usize]);
+                print!("{}, {} bytes. blocks: ", str::from_utf8(&nd.name).unwrap(), nd.size);
+                for j in 0..nd.size {
+                    print!("{} ", nd.block_pointers[j as usize]);
+                }
             }
             // WHY DOESN'T THIS WORK BUT ABOVE DOES??
             //print!("{}}}", nd.block_pointers[(nd.size - 1) as usize]); 
         }
+        print!("\n")
     }
 
     pub fn delete_file(&mut self, name: [u8; 8]) -> i32 {
@@ -195,10 +197,10 @@ impl MyFileSystem { // impl is kinda like a class, implements functions for stru
                 node_index = i as i32;
                 for j in 0..nd.size {
                     // TODO: consider using usize explicitly instead of i32 when possible
-                   
                     freelist[nd.block_pointers[j as usize] as usize] = 0;
                 }
-                nd.used = 0;
+                nd.used = 0; 
+                // note: we don't need to zero out inode's blockpointers or name, since it will get overwritten anyway
                 break;
             }
         }
@@ -215,10 +217,6 @@ impl MyFileSystem { // impl is kinda like a class, implements functions for stru
     }
     
 } 
-
-    // delete_file
-    // int delete_file(char name[8]);
-
 
     // read
     // int read(char name[8], int blockNum, char buf[1024]);

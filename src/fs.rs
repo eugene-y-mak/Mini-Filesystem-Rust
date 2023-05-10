@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use std::fs::OpenOptions;
 
 
-pub const BLOCK_SIZE: i32 = 1024; // 1KB
+// pub const BLOCK_SIZE: i32 = 1024; // 1KB
 
 #[derive(Serialize, Deserialize)]
 pub struct IdxNode { // 'a is lifetime specifier
@@ -147,7 +147,34 @@ impl MyFileSystem { // impl is kinda like a class, implements functions for stru
         self.disk.write(&freelist).expect("Write failed.");
         1
     }
-        
+    
+    pub fn ls(&mut self) {
+        let mut nd =  IdxNode {
+            name: [0u8; 8],
+            size: -1, 
+            block_pointers: [0; 8],
+            used: -1
+        };  
+        let size_of_node = mem::size_of::<IdxNode>();
+        assert!(size_of_node == 48);
+        for i in 0..16 {
+            self.disk.seek(SeekFrom::Start(u64::try_from(128 + ((i as usize) * size_of_node)).expect("Conversion failed."))).expect("Failed to seek.");
+            nd = IdxNode::from_reader(&self.disk).expect("IdxNode read failed."); 
+            if nd.used == 1 {
+                print!("{}, {} bytes. blocks: ", str::from_utf8(&nd.name).unwrap(), nd.size)
+            }
+            for j in 0..nd.size {
+                print!("{} ", nd.block_pointers[j as usize]);
+            }
+            // WHY DOESN'T THIS WORK BUT ABOVE DOES??
+            //print!("{}}}", nd.block_pointers[(nd.size - 1) as usize]); 
+        }
+    }
+    pub fn delete_file(&mut self, name: [u8; 8]) {
+        self.disk.seek(SeekFrom::Start(0)).expect("Failed to seek.");
+
+    }
+    
 } 
 
     // delete_file
@@ -159,10 +186,6 @@ impl MyFileSystem { // impl is kinda like a class, implements functions for stru
 
     // write
     // int write(char name[8], int blockNum, char buf[1024]);
-
-
-    // ls
-    // int ls();
 
     // close_disk
     // int close_disk();

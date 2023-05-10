@@ -8,4 +8,5 @@ fn main(){
         buf[i] = test_string[i] as u8;
     }
     f.create_file(buf, 4);
+    f.ls();
 }

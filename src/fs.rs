@@ -1,16 +1,18 @@
 use std::io::SeekFrom;
 use std::{
     fs::File,
-    io::{self, Seek, Read},
+    io::{self, Seek, Read, Write},
     str,
 };
 use byteorder::{LittleEndian, ReadBytesExt};
 use std::convert::TryFrom;
+use serde::{Deserialize, Serialize};
+use std::fs::OpenOptions;
 
 
 pub const BLOCK_SIZE: i32 = 1024; // 1KB
 
-
+#[derive(Serialize, Deserialize)]
 pub struct IdxNode { // 'a is lifetime specifier
     // problem: length of array is always length of string? can't be fixed length?
     name: [u8; 8], // array of bytes. Alternatively: [&'a str; 8]?
@@ -54,37 +56,11 @@ pub struct MyFileSystem {
 impl MyFileSystem { // impl is kinda like a class, implements functions for struct
     pub fn new(diskname: &str) -> Self { // diskname: size 16
         Self { 
-            disk: File::open(diskname).expect("There is no file to open.")
+            disk: OpenOptions::new().read(true).write(true).open(diskname).expect("There is no file to open.")
         } 
         
     }
-    // create_file, name: size 8
-    // Step 1: Check to see if we have sufficient free space on disk by reading in the free block list. To do this:
-    // Move the file pointer to the start of the disk file.
-    // Read the first 128 bytes (the free/in-use block information)
-    // Scan the list to make sure you have sufficient free blocks to allocate a new file of this size
 
-    // Step 2: we look for a free inode on disk
-    // Read in an inode
-    // Check the "used" field to see if it is free
-    // If not, repeat the above two steps until you find a free inode
-    // Set the "used" field to 1
-    // Copy the filename to the "name" field
-    // Copy the file size (in units of blocks) to the "size" field
-
-    // Step 3: Allocate data blocks to the file
-    // for(i=0;i<size;i++)
-    // Scan the block list that you read in Step 1 for a free block
-    // Once you find a free block, mark it as in-use (Set it to 1)
-    // Set the blockPointer[i] field in the inode to this block number.
-    // end for
-
-    // Step 4: Write out the inode and free block list to disk
-    // Move the file pointer to the start of the disk file
-    // Write out the 128 byte free block list to the disk file
-    // Move the file pointer to the position on disk where this inode was stored
-    // Write out the inode to the disk file
-    
     pub fn create_file(&mut self, name: [u8; 8], size: i32) -> i32 {
         if size < 1 || size > 8 {
             println!("Size specified is nonpositive or greater than max");
@@ -140,14 +116,29 @@ impl MyFileSystem { // impl is kinda like a class, implements functions for stru
         if node_index == -1 { // if for loop never ran didn't read in an inode
             return -1;
         }
-        nd.name = name; // pass by value?
+        nd.name = name; // pass by value? moves name, but name is array that implements Copy? 
         nd.size = size;
         nd.used = 1;
 
+        let mut blocks_needed = size;
+        for i in 0..128 {
+            if blocks_needed == 0 {
+                break;
+            }
+            if freelist[i] == 0 {
+                freelist[i] = 1;
+                // need to cast indexing to usize, since Index trait does not implement for i32
+                nd.block_pointers[(size - blocks_needed) as usize] = i as i32; 
+                blocks_needed -= 1;
+            }
+        }
+        self.disk.seek(SeekFrom::Start(u64::try_from(128 + (node_index * size_of_node)).expect("Conversion failed"))).expect("Failed to seek.");
+        let inode_bytes = bincode::serialize(&nd).unwrap();
         
-
-        0
-
+        self.disk.write(&inode_bytes).expect("Write failed");
+        self.disk.seek(SeekFrom::Start(0)).expect("Seek failed.");
+        self.disk.write(&freelist).expect("Write failed.");
+        1
     }
         
 } 

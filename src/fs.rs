@@ -1,8 +1,8 @@
-use std::io::SeekFrom;
 use std::{
     fs::File,
-    io::{self, Seek, Read, Write},
+    io::{self, Seek, SeekFrom, Read, Write},
     str,
+    mem,
 };
 use byteorder::{LittleEndian, ReadBytesExt};
 use std::convert::TryFrom;
@@ -56,7 +56,7 @@ pub struct MyFileSystem {
 impl MyFileSystem { // impl is kinda like a class, implements functions for struct
     pub fn new(diskname: &str) -> Self { // diskname: size 16
         Self { 
-            disk: OpenOptions::new().read(true).write(true).open(diskname).expect("There is no file to open.")
+            disk: OpenOptions::new().read(true).write(true).open(diskname).expect("There is no file to open. Did you run create_fs.rs first?")
         } 
         
     }
@@ -86,30 +86,28 @@ impl MyFileSystem { // impl is kinda like a class, implements functions for stru
         if freeblocks < size {
             return -1;
         }
-        println!("Enough freeblocks: {freeblocks}, for the specified size");
+        println!("Enough freeblocks, {freeblocks}, for the specified size");
 
-        // find unused inode, also check if inode exists with name already
-        
-        // how to read inode from disk? 
-        // 1. unsafe + transmute
-        // 2. bincode, serde
-        // 3. byteorder
         let mut nd =  IdxNode {
             name: [0u8; 8],
             size: -1, 
             block_pointers: [0; 8],
             used: -1
         };  
-        // TODO: assert size of IdxNode is 48...
-        // then use sizeof var for later
-        let size_of_node = 48;
-        let mut node_index:i32 = -1;
-        for i in (0i32..16).rev() { // iterator is u64 bruh
-            self.disk.seek(SeekFrom::Start(u64::try_from(128 + (i * size_of_node)).expect("Conversion failed"))).expect("Failed to seek.");
+    
+        let size_of_node = mem::size_of::<IdxNode>();
+        // println!("SIZE OF INODE: {}", size_of_node);
+        assert!(size_of_node == 48);
+        let mut node_index = -1;
+        // find unused inode, also check if inode exists with name already
+        for i in (0..16).rev() { // iterator is u64 bruh
+            self.disk.seek(SeekFrom::Start(u64::try_from(128 + (i * size_of_node)).expect("Conversion failed."))).expect("Failed to seek.");
+            // CONSIDER: using bincode deserialize instead. But, this seems to work...
             nd = IdxNode::from_reader(&self.disk).expect("IdxNode read failed."); // lol just borrow?
             if nd.used == 0 {
-                node_index = i;
+                node_index = i as i32;
             } else if str::from_utf8(&nd.name).unwrap().eq(str::from_utf8(&name).unwrap()) { // question: from utf8 handles names < 8 size?
+                println!("File found already in disk.");
                 return -1
             }
         }
@@ -132,11 +130,20 @@ impl MyFileSystem { // impl is kinda like a class, implements functions for stru
                 blocks_needed -= 1;
             }
         }
-        self.disk.seek(SeekFrom::Start(u64::try_from(128 + (node_index * size_of_node)).expect("Conversion failed"))).expect("Failed to seek.");
+
+        // seek to inode position
+        self.disk.seek(SeekFrom::Start(u64::try_from(128 + ((node_index as usize) * size_of_node )).expect("Conversion failed."))).expect("Failed to seek.");
+        
+        // serialize inode as bytes in a buffer
         let inode_bytes = bincode::serialize(&nd).unwrap();
         
-        self.disk.write(&inode_bytes).expect("Write failed");
-        self.disk.seek(SeekFrom::Start(0)).expect("Seek failed.");
+        // write buffer to disk
+        self.disk.write(&inode_bytes).expect("Write failed.");
+
+        // seek to beginning
+        self.disk.seek(SeekFrom::Start(0)).expect("Failed to seek.");
+
+        //write new freelist to disk
         self.disk.write(&freelist).expect("Write failed.");
         1
     }

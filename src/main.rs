@@ -9,4 +9,6 @@ fn main(){
     }
     f.create_file(buf, 4);
     f.ls();
+    f.delete_file(buf);
+    f.ls()
 }

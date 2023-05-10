@@ -149,14 +149,15 @@ impl MyFileSystem { // impl is kinda like a class, implements functions for stru
     }
     
     pub fn ls(&mut self) {
+        let size_of_node = mem::size_of::<IdxNode>();
+        assert!(size_of_node == 48);
         let mut nd =  IdxNode {
             name: [0u8; 8],
             size: -1, 
             block_pointers: [0; 8],
             used: -1
         };  
-        let size_of_node = mem::size_of::<IdxNode>();
-        assert!(size_of_node == 48);
+        
         for i in 0..16 {
             self.disk.seek(SeekFrom::Start(u64::try_from(128 + ((i as usize) * size_of_node)).expect("Conversion failed."))).expect("Failed to seek.");
             nd = IdxNode::from_reader(&self.disk).expect("IdxNode read failed."); 
@@ -170,9 +171,47 @@ impl MyFileSystem { // impl is kinda like a class, implements functions for stru
             //print!("{}}}", nd.block_pointers[(nd.size - 1) as usize]); 
         }
     }
-    pub fn delete_file(&mut self, name: [u8; 8]) {
-        self.disk.seek(SeekFrom::Start(0)).expect("Failed to seek.");
 
+    pub fn delete_file(&mut self, name: [u8; 8]) -> i32 {
+        println!("Deleting file {}", str::from_utf8(&name).unwrap());
+        let size_of_node = mem::size_of::<IdxNode>();
+        assert!(size_of_node == 48);
+
+        self.disk.seek(SeekFrom::Start(0)).expect("Failed to seek.");
+        let mut freelist = [0; 128]; // u8's size is 1 byte like a char
+        self.disk.read_exact(&mut freelist).expect("Read failed.");
+
+        let mut nd =  IdxNode {
+            name: [0u8; 8],
+            size: -1, 
+            block_pointers: [0; 8],
+            used: -1
+        };  
+        let mut node_index = -1;
+        for i in 0..16 { 
+            self.disk.seek(SeekFrom::Start(u64::try_from(128 + (i * size_of_node)).expect("Conversion failed."))).expect("Failed to seek.");
+            nd = IdxNode::from_reader(&self.disk).expect("IdxNode read failed."); 
+            if nd.used == 1 && str::from_utf8(&nd.name).unwrap().eq(str::from_utf8(&name).unwrap()) { // question: from utf8 handles names < 8 size?
+                node_index = i as i32;
+                for j in 0..nd.size {
+                    // TODO: consider using usize explicitly instead of i32 when possible
+                   
+                    freelist[nd.block_pointers[j as usize] as usize] = 0;
+                }
+                nd.used = 0;
+                break;
+            }
+        }
+        if node_index == -1 {
+            return -1;
+        }
+
+        self.disk.seek(SeekFrom::Start(u64::try_from(128 + ((node_index as usize) * size_of_node)).expect("Conversion failed."))).expect("Failed to seek.");
+        let inode_bytes = bincode::serialize(&nd).unwrap();
+        self.disk.write(&inode_bytes).expect("Write failed.");
+        self.disk.seek(SeekFrom::Start(0)).expect("Failed to seek.");
+        self.disk.write(&freelist).expect("Write failed.");
+        1
     }
     
 } 

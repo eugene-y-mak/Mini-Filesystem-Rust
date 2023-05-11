@@ -216,7 +216,7 @@ impl MyFileSystem { // impl is kinda like a class, implements functions for stru
         1
     }
     
-    pub fn read(&mut self, name: [u8; 8], block_num: usize, mut buf: [u8; 1024]) -> i32 {
+    pub fn read(&mut self, name: [u8; 8], block_num: usize, buf: &mut [u8; 1024]) -> i32 {
         println!("Reading file {}", str::from_utf8(&name).unwrap());
         let size_of_node = mem::size_of::<IdxNode>();
         assert!(size_of_node == 48);
@@ -243,12 +243,13 @@ impl MyFileSystem { // impl is kinda like a class, implements functions for stru
             return -1;
         }
         self.disk.seek(SeekFrom::Start(u64::try_from(1024 * nd.block_pointers[block_num]).unwrap())).expect("Failed to seek.");
-        self.disk.read_exact(&mut buf).expect("Read failed.");
+        self.disk.read_exact(buf).expect("Read failed.");
+        println!("Read successful!");
         1
     }
 
     pub fn write(&mut self, name: [u8; 8], block_num: usize, mut buf: [u8; 1024]) -> i32 {
-        println!("Reading file {}", str::from_utf8(&name).unwrap());
+        println!("Writing to file {}", str::from_utf8(&name).unwrap());
         let size_of_node = mem::size_of::<IdxNode>();
         assert!(size_of_node == 48);
 
@@ -274,7 +275,8 @@ impl MyFileSystem { // impl is kinda like a class, implements functions for stru
             return -1;
         }
         self.disk.seek(SeekFrom::Start(u64::try_from(1024 * nd.block_pointers[block_num]).unwrap())).expect("Failed to seek.");
-        self.disk.write(&mut buf).expect("Read failed.");
+        self.disk.write(&buf).expect("Write failed.");
+        println!("Write successful!");
         1
     }
     
@@ -283,9 +285,6 @@ impl MyFileSystem { // impl is kinda like a class, implements functions for stru
     //     drop(self.disk);
     // }
 } 
-
-    // write
-    // int write(char name[8], int blockNum, char buf[1024]);
 
 
 

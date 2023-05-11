@@ -1,14 +1,24 @@
 mod fs;
+use std::str;
 fn main(){
     let mut f = fs::MyFileSystem::new("disk0");
     // "cannot mutate immutable f" so need to make f mutable
-    let mut buf = [0u8; 8];
+    let mut test_buf = [0u8; 8];
     let test_string = "test".as_bytes();
     for i in 0..4 {
-        buf[i] = test_string[i] as u8;
+        test_buf[i] = test_string[i] as u8;
     }
-    f.create_file(buf, 4);
+    f.create_file(test_buf, 4);
     f.ls();
-    f.delete_file(buf);
+    let mut buf = [3u8; 1024];
+    f.write(test_buf, 0, buf);
+    let mut read_buf = [0u8; 1024];
+    f.read(test_buf, 0, &mut read_buf); // THE REFERENCE NEEDS TO BE MUTABLE
+    println!("BUFFER READ CHECK:");
+    for i in 0..1024 {
+        print!("{}", read_buf[i]);
+    }
+    println!("\n");
+    f.delete_file(test_buf);
     f.ls()
 }

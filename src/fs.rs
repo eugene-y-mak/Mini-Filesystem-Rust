@@ -216,16 +216,76 @@ impl MyFileSystem { // impl is kinda like a class, implements functions for stru
         1
     }
     
-} 
+    pub fn read(&mut self, name: [u8; 8], block_num: usize, mut buf: [u8; 1024]) -> i32 {
+        println!("Reading file {}", str::from_utf8(&name).unwrap());
+        let size_of_node = mem::size_of::<IdxNode>();
+        assert!(size_of_node == 48);
 
-    // read
-    // int read(char name[8], int blockNum, char buf[1024]);
+        let mut nd =  IdxNode {
+            name: [0u8; 8],
+            size: -1, 
+            block_pointers: [0; 8],
+            used: -1
+        };  
+        let mut node_index = -1;
+        for i in 0..16 { 
+            self.disk.seek(SeekFrom::Start(u64::try_from(128 + (i * size_of_node)).expect("Conversion failed."))).expect("Failed to seek.");
+            nd = IdxNode::from_reader(&self.disk).expect("IdxNode read failed."); 
+            if nd.used == 1 && str::from_utf8(&nd.name).unwrap().eq(str::from_utf8(&name).unwrap()) { // question: from utf8 handles names < 8 size?
+                node_index = i as i32;
+                break;
+            }
+        }
+        if node_index == -1 {
+            return -1;
+        }
+        if nd.size <= block_num as i32 {
+            return -1;
+        }
+        self.disk.seek(SeekFrom::Start(u64::try_from(1024 * nd.block_pointers[block_num]).unwrap())).expect("Failed to seek.");
+        self.disk.read_exact(&mut buf).expect("Read failed.");
+        1
+    }
+
+    pub fn write(&mut self, name: [u8; 8], block_num: usize, mut buf: [u8; 1024]) -> i32 {
+        println!("Reading file {}", str::from_utf8(&name).unwrap());
+        let size_of_node = mem::size_of::<IdxNode>();
+        assert!(size_of_node == 48);
+
+        let mut nd =  IdxNode {
+            name: [0u8; 8],
+            size: -1, 
+            block_pointers: [0; 8],
+            used: -1
+        };  
+        let mut node_index = -1;
+        for i in 0..16 { 
+            self.disk.seek(SeekFrom::Start(u64::try_from(128 + (i * size_of_node)).expect("Conversion failed."))).expect("Failed to seek.");
+            nd = IdxNode::from_reader(&self.disk).expect("IdxNode read failed."); 
+            if nd.used == 1 && str::from_utf8(&nd.name).unwrap().eq(str::from_utf8(&name).unwrap()) { // question: from utf8 handles names < 8 size?
+                node_index = i as i32;
+                break;
+            }
+        }
+        if node_index == -1 {
+            return -1;
+        }
+        if nd.size <= block_num as i32 {
+            return -1;
+        }
+        self.disk.seek(SeekFrom::Start(u64::try_from(1024 * nd.block_pointers[block_num]).unwrap())).expect("Failed to seek.");
+        self.disk.write(&mut buf).expect("Read failed.");
+        1
+    }
+    
+    // no need to have?
+    // pub fn close_disk(&mut self) {
+    //     drop(self.disk);
+    // }
+} 
 
     // write
     // int write(char name[8], int blockNum, char buf[1024]);
-
-    // close_disk
-    // int close_disk();
 
 
 

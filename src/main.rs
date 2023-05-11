@@ -20,5 +20,8 @@ fn main(){
     }
     println!("\n");
     f.delete_file(test_buf);
-    f.ls()
+    f.ls();
+    let return_code = f.close_disk();
+    println!("Close disk returned: {}", return_code);
+
 }

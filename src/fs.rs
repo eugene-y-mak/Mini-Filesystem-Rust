@@ -281,9 +281,10 @@ impl MyFileSystem { // impl is kinda like a class, implements functions for stru
     }
     
     // no need to have?
-    // pub fn close_disk(&mut self) {
-    //     drop(self.disk);
-    // }
+    pub fn close_disk(&mut self) -> i32 {
+        drop(&self.disk);
+        1
+    }
 } 
 
 
